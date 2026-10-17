@@ -48,7 +48,7 @@ Respuesta: `202 Accepted`. Si se omite `exchange`, se usa el exchange por defect
 | Paso | Descripción | Estado |
 |---|---|---|
 | B1 | Configuración base (conexión a RabbitMQ, ACK manual, prefetch) y REST de prueba | ✅ Probado en local |
-| B2 | Topología: exchanges, colas, DLQ y bindings | ⏳ |
+| B2 | Topología: exchanges, colas, DLQ y bindings | ✅ Probado en local |
 | B3 | Consumidor de email con ACK | ⏳ |
 | B4 | Manejo de errores y DLQ | ⏳ |
 | B5 | Reintentos | ⏳ |
