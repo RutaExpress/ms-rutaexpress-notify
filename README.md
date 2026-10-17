@@ -51,6 +51,6 @@ Respuesta: `202 Accepted`. Si se omite `exchange`, se usa el exchange por defect
 | B2 | Topología: exchanges, colas, DLQ y bindings | ✅ Probado en local |
 | B3 | Consumidor de email con ACK manual (y NACK a DLQ si el mensaje es inválido) | ✅ Probado en local |
 | B4 | Errores no recuperables → NACK → DLQ, clase abstracta de consumidores y alerta de DLQ | ✅ Probado en local |
-| B5 | Reintentos | ⏳ |
+| B5 | Reintentos para fallas temporales (3 intentos, espera creciente) y NACK a DLQ si se agotan | ✅ Probado en local |
 | B6 | Idempotencia | ⏳ |
 | B7 | Consumidores de bodega y etiqueta | ⏳ |
