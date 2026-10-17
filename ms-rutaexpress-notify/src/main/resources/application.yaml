@@ -18,6 +18,16 @@ spring:
         acknowledge-mode: manual
         prefetch: 1
         default-requeue-rejected: false
-  notify:
-    dlq-alert:
-      enabled: true   # false = no consumir las DLQ (los fallidos quedan visibles en RabbitMQ)        
+
+notify:
+  dlq-alert:
+    enabled: true             # false = no consumir las DLQ (los fallidos quedan visibles en RabbitMQ)
+  retry:                      # reintentos para fallas temporales (valores de la Guía 2.2.3)
+    max-attempts: 3           # 3 intentos en total
+    initial-interval: 1000    # espera 1 s antes del 2.º intento
+    multiplier: 2.0           # 1 s, 2 s, 4 s...
+    max-interval: 10000       # nunca espera más de 10 s
+
+logging:
+  file:
+    name: logs/notify.log     # guarda los logs también en un archivo

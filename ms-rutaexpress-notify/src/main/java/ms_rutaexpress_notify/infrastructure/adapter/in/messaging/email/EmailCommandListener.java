@@ -5,6 +5,8 @@ import ms_rutaexpress_notify.domain.model.ShipmentEvent;
 import ms_rutaexpress_notify.domain.ports.in.ProcessNotificationUseCase;
 import ms_rutaexpress_notify.infrastructure.adapter.in.messaging.AbstractCommandListener;
 import ms_rutaexpress_notify.infrastructure.config.RabbitMQConfig;
+import ms_rutaexpress_notify.infrastructure.config.RetryProperties;
+
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
@@ -19,8 +21,9 @@ public class EmailCommandListener extends AbstractCommandListener {
     private final ProcessNotificationUseCase processNotificationUseCase;
 
     public EmailCommandListener(ProcessNotificationUseCase processNotificationUseCase,
-                                ObjectMapper objectMapper) {
-        super(objectMapper);
+                                ObjectMapper objectMapper,
+                                RetryProperties retryProperties) {
+        super(objectMapper, retryProperties);  // la clase padre maneja JSON y reintentos
         this.processNotificationUseCase = processNotificationUseCase;
     }
 
