@@ -1,18 +1,14 @@
-server:
-  port: 8083
-
+# notify NO expone HTTP: solo consume colas de RabbitMQ (según el caso)
 spring:
   application:
     name: ms-rutaexpress-notify
-  profiles:
-    active: ${SPRING_PROFILES_ACTIVE:dev}
 
   rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
-    port: ${RABBITMQ_PORT:5672}
+    # Clúster: lista de nodos separada por coma (ej: 10.0.1.20:5672,10.0.1.20:5673)
+    addresses: ${RABBITMQ_ADDRESSES:localhost:5672}
     username: ${RABBITMQ_USER:guest}
     password: ${RABBITMQ_PASSWORD:guest}
-    virtual-host: /
+    virtual-host: ${RABBITMQ_VHOST:/}
     listener:
       simple:
         acknowledge-mode: manual
@@ -21,8 +17,10 @@ spring:
 
 notify:
   dlq-alert:
-    enabled: true             # false = no consumir las DLQ (los fallidos quedan visibles en RabbitMQ)
-  retry:                      # reintentos para fallas temporales (valores de la Guía 2.2.3)
+    enabled: ${NOTIFY_DLQ_ALERT_ENABLED:true}   # false = no consumir las DLQ (los fallidos quedan visibles)
+  smtp:
+    fail-first: ${NOTIFY_SMTP_FAIL_FIRST:0}     # prueba de resiliencia: N primeros emails fallan (0 = apagado)
+  retry:                      # reintentos para fallas temporales (Guía 2.2.3)
     max-attempts: 3           # 3 intentos en total
     initial-interval: 1000    # espera 1 s antes del 2.º intento
     multiplier: 2.0           # 1 s, 2 s, 4 s...

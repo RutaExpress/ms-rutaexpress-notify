@@ -1,56 +1,68 @@
 # ms-rutaexpress-notify
 
 Microservicio de **notificaciones** de RutaExpress (plataforma de envíos de última milla).
-Consume comandos desde **RabbitMQ** y ejecuta tareas asíncronas:
+Consume comandos desde **RabbitMQ** que publica `ms-rutaexpress-shipments` y ejecuta tareas asíncronas:
 
-- Email al destinatario (envío aceptado, en ruta, entregado)
-- Ticket de picking para bodega
-- Generación de etiqueta / guía de despacho
+- Email al destinatario (envío aceptado, en ruta, entregado, cancelado) → `q.cmd.email`
+- Ticket de picking para bodega (crear / anular) → `q.cmd.warehouse`
+- Generación de etiqueta / guía de despacho → `q.cmd.label`
 
-> Según el caso, este servicio **no es público**: no expone endpoints en producción, solo consume colas.
+> Según el caso, este servicio **no es público**: no expone endpoints HTTP, solo consume colas.
 
 ## Tecnologías
-- Java 21 · Spring Boot 4.1.1 · Spring AMQP
-- RabbitMQ 4.2 (Docker)
+Java 21 · Spring Boot 4.1.1 · Spring AMQP · RabbitMQ 4.2 (clúster de 2 nodos)
 
-## Estructura del repositorio
+## Estructura
 ```
 .
 ├── README.md
-└── ms-rutaexpress-notify/      ← proyecto Spring Boot
+├── .github/workflows/ci.yml    ← CI: build, tests y build de la imagen
+└── ms-rutaexpress-notify/
+    ├── Dockerfile
     ├── pom.xml
-    └── src/
+    └── src/main/java/ms_rutaexpress_notify/
+        ├── domain/          modelos (records), excepciones, puertos in/out
+        ├── application/     casos de uso (validación del mensaje)
+        └── infrastructure/
+            ├── config/      RabbitMQConfig (topología), RetryProperties
+            └── adapter/
+                ├── in/messaging/   AbstractCommandListener + listeners email, warehouse, label, dlq
+                └── out/            adaptadores de email, bodega y etiqueta (log)
 ```
 
+## Topología 
+| Cola | DLQ | Key direct (`cmd.direct`) | Patrón topic (`cmd.topic`) | Key DLX (`cmd.dead.dlx`) |
+|---|---|---|---|---|
+| q.cmd.email | q.cmd.email.dlq | email.send | email.* | email.dead |
+| q.cmd.warehouse | q.cmd.warehouse.dlq | warehouse.ticket | warehouse.# | warehouse.dead |
+| q.cmd.label | q.cmd.label.dlq | label.gen | label.* | label.dead |
 
+Colas principales: TTL 1 h y máximo 1000 mensajes. DLQ: TTL 24 h.
+
+## Manejo de errores
+| Caso | Acción |
+|---|---|
+| Procesado OK | ACK |
+| Dato inválido (`InvalidMessageException`) | NACK sin reintentos → DLQ |
+| Falla temporal (`TemporaryFailureException`) | 3 intentos (espera 1 s, 2 s); si se agotan → NACK → DLQ |
+| Mensaje en una DLQ | `DeadLetterAlertListener` registra `[DLQ-ALERTA]` |
 
 ## Variables de entorno
-| Variable | Por defecto (local) | Uso |
+| Variable | Por defecto | Uso |
 |---|---|---|
-| `SPRING_PROFILES_ACTIVE` | `dev` | En la nube se usa otro perfil |
-| `RABBITMQ_HOST` | `localhost` | Host de RabbitMQ |
-| `RABBITMQ_PORT` | `5672` | Puerto AMQP |
-| `RABBITMQ_USER` | `guest` | Usuario |
-| `RABBITMQ_PASSWORD` | `guest` | Clave |
+| `RABBITMQ_ADDRESSES` | `localhost:5672` | Nodos del clúster separados por coma |
+| `RABBITMQ_USER` / `RABBITMQ_PASSWORD` | `guest` / `guest` | En la nube: usuario `rx-notify` |
+| `RABBITMQ_VHOST` | `/` | En la nube: `rutaexpress` |
+| `NOTIFY_DLQ_ALERT_ENABLED` | `true` | `false` deja los fallidos visibles en la DLQ |
+| `NOTIFY_SMTP_FAIL_FIRST` | `0` | Prueba de resiliencia: los primeros N emails fallan (2 = reintentos que se recuperan, 3 = va a DLQ) |
 
-## Endpoint de prueba (solo perfil `dev`)
-Permite publicar mensajes desde Postman mientras se desarrolla (basado en la Guía 2.1.2, paso 9).
-
-```
-POST http://localhost:8083/api/test/publish?exchange=<exchange>&routingKey=<key>
-Content-Type: application/json
-
-{ "eventId": "b1-001", "mensaje": "hola RabbitMQ desde notify" }
-```
-Respuesta: `202 Accepted`. Si se omite `exchange`, se usa el exchange por defecto.
+## Ejecución
+- Local: `mvnw.cmd spring-boot:run` (con RabbitMQ levantado).
+- Docker: `docker build -t ms-notify .` dentro de `ms-rutaexpress-notify/`.
 
 ## Avance
 | Paso | Descripción | Estado |
 |---|---|---|
-| B1 | Configuración base (conexión a RabbitMQ, ACK manual, prefetch) y REST de prueba | ✅ Probado en local |
-| B2 | Topología: exchanges, colas, DLQ y bindings | ✅ Probado en local |
-| B3 | Consumidor de email con ACK manual (y NACK a DLQ si el mensaje es inválido) | ✅ Probado en local |
-| B4 | Errores no recuperables → NACK → DLQ, clase abstracta de consumidores y alerta de DLQ | ✅ Probado en local |
-| B5 | Reintentos para fallas temporales (3 intentos, espera creciente) y NACK a DLQ si se agotan | ✅ Probado en local |
-| B6 | Idempotencia | ⏳ |
-| B7 | Consumidores de bodega y etiqueta | ⏳ |
+| B1–B5 | Conexión, topología, ACK/NACK, DLQ, reintentos | ✅ |
+| B7 | Consumidores de bodega y etiqueta | ✅ |
+| F1 | Limpieza: sin endpoints de desarrollo, configuración por variables de entorno, Dockerfile y CI | ✅ |
